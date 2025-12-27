@@ -1,0 +1,8 @@
+{
+  "name": "Ultranet Ponto - Sistema de Ponto Eletrônico",
+  "description": "Solução de gestão de jornada inteligente para colaboradores da Ultranet Provedor.",
+  "requestFramePermissions": [
+    "geolocation",
+    "camera"
+  ]
+}
