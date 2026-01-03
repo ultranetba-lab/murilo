@@ -28,6 +28,7 @@ export interface UserProfile {
   id: string;
   name: string;
   username: string;
+  cpf?: string;
   company: string;
   role: string;
   shift: string;

@@ -1,37 +1,11 @@
-import React, { useState, useMemo } from 'react';
+
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
-  Users, 
-  AlertTriangle, 
-  Plus, 
-  Search, 
-  Edit2, 
-  CheckCircle, 
-  XCircle, 
-  Save, 
-  Trash2, 
-  X, 
-  Camera, 
-  ArrowRight, 
-  TrendingUp, 
-  ChevronRight, 
-  Printer, 
-  User as UserIcon, 
-  LayoutDashboard,
-  Calendar,
-  Palmtree,
-  Sun,
-  History,
-  UserCheck,
-  Filter,
-  Navigation,
-  Clock,
-  Check,
-  UserX,
-  UserCheck2,
-  Lock,
-  Eye,
-  EyeOff,
-  ChevronDown
+  Users, UserCheck, UserX, TrendingUp, Search, Trash2, 
+  Printer, LayoutDashboard, FileText, Settings, 
+  Activity, ChevronRight, Plus, X, User, Briefcase, AtSign, Lock, Clock, Save,
+  CalendarDays, Coffee, Palmtree, Edit3, Fingerprint, AlertCircle, Eye, CheckCircle2, AlertTriangle,
+  Download, Upload, Database
 } from 'lucide-react';
 import { PunchRecord, UserProfile, PunchStatus } from '../types';
 
@@ -42,583 +16,1051 @@ interface AdminDashboardProps {
   onAddEmployee: (emp: UserProfile) => void;
   onUpdateEmployee: (emp: UserProfile) => void;
   onDeleteEmployee: (id: string) => void;
+  onBackup?: () => void;
+  onRestore?: (file: File) => void;
 }
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ 
-  punches, 
-  employees, 
-  onManualPunch,
-  onAddEmployee,
-  onUpdateEmployee,
-  onDeleteEmployee
+  punches, employees, onAddEmployee, onUpdateEmployee, onDeleteEmployee, onManualPunch, onBackup, onRestore
 }) => {
-  const [tab, setTab] = useState<'OVERVIEW' | 'EMPLOYEES' | 'EXTRACT' | 'ADJUST'>('OVERVIEW');
+  const [activeTab, setActiveTab] = useState<'INICIO' | 'EQUIPE' | 'FOLHA' | 'AJUSTE'>('INICIO');
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [editingEmployeeId, setEditingEmployeeId] = useState<string | null>(null);
-  const [selectedEmployeeForDetail, setSelectedEmployeeForDetail] = useState<string | null>(null);
-  const [showSuccessToast, setShowSuccessToast] = useState(false);
-  const [toastMessage, setToastMessage] = useState('Salvo com sucesso!');
-  const [showPassword, setShowPassword] = useState(false);
+  const [employeeToDelete, setEmployeeToDelete] = useState<UserProfile | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Report states
+  const [reportType, setReportType] = useState<'DIARIO' | 'MENSAL'>('MENSAL');
+  const [reportMonth, setReportMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [reportDay, setReportDay] = useState(new Date().toISOString().split('T')[0]);
+  const [reportFilterEmployeeId, setReportFilterEmployeeId] = useState<string>('all');
 
-  const [formEmp, setFormEmp] = useState({ name: '', username: '', role: 'TECNICO', password: '' });
-
-  const [adjustmentData, setAdjustmentData] = useState({
-    employeeId: '',
-    type: 'ESQUECIMENTO' as 'ESQUECIMENTO' | 'FOLGA' | 'FERIADO', 
-    date: new Date().toISOString().split('T')[0],
-    startTime: '08:00',
-    endTime: '12:00',
-    startTime2: '13:00',
-    endTime2: '17:00',
-    reason: ''
+  // Employee Form State
+  const [formData, setFormData] = useState({
+    name: '',
+    role: '',
+    cpf: '',
+    username: '',
+    password: '',
+    shift: '08:00 - 12:00 / 13:00 - 17:00'
   });
 
-  const months = useMemo(() => {
-    const list = [];
-    const year = 2026;
-    const monthNames = [
-      "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
-      "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
-    ];
-    for (let m = 0; m < 12; m++) {
-      list.push({
-        value: `${year}-${String(m + 1).padStart(2, '0')}`,
-        label: `${monthNames[m]} / ${year}`
-      });
-    }
-    return list;
-  }, []);
+  // Adjustment Form State
+  const [adjustmentData, setAdjustmentData] = useState({
+    userId: '',
+    type: 'IN' as 'IN' | 'OUT' | 'FOLGA' | 'FERIADO',
+    date: new Date().toISOString().split('T')[0],
+    time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+    justification: ''
+  });
 
-  const [selectedCompetency, setSelectedCompetency] = useState('2026-01');
-
-  const triggerToast = (msg: string) => {
-    setToastMessage(msg);
-    setShowSuccessToast(true);
-    setTimeout(() => setShowSuccessToast(false), 3000);
-  };
-
-  const handlePrintMirror = () => {
-    window.print();
-  };
-
-  const todayPresenceStatus = useMemo(() => {
-    const todayStr = new Date().toLocaleDateString('pt-BR');
-    return employees.map(emp => {
-      const todayPunches = punches.filter(p => 
-        p.userId === emp.id && 
-        p.timestamp.toLocaleDateString('pt-BR') === todayStr
-      ).sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-
-      const inPunch = todayPunches.find(p => p.type === 'IN');
-      const outPunch = [...todayPunches].reverse().find(p => p.type === 'OUT');
-      const specialStatus = todayPunches.find(p => p.type === 'FOLGA' || p.type === 'FERIADO');
-
-      return {
-        ...emp,
-        hasPunched: todayPunches.length > 0,
-        inTime: inPunch?.timestamp,
-        outTime: outPunch?.timestamp,
-        special: specialStatus?.type
-      };
-    });
-  }, [employees, punches]);
-
-  const employeeStats = useMemo(() => {
-    return employees.map(emp => {
-      const empPunches = punches.filter(p => {
-        const pDate = p.timestamp;
-        const pMonth = `${pDate.getFullYear()}-${String(pDate.getMonth() + 1).padStart(2, '0')}`;
-        return p.userId === emp.id && pMonth === selectedCompetency;
-      }).sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-
-      const dailyMap: Record<string, PunchRecord[]> = {};
-      
-      // Criar mapa para todos os dias do mês selecionado
-      const [year, month] = selectedCompetency.split('-').map(Number);
-      const daysInMonth = new Date(year, month, 0).getDate();
-      
-      for (let i = 1; i <= daysInMonth; i++) {
-        const dateKey = `${String(i).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
-        dailyMap[dateKey] = [];
-      }
-
-      empPunches.forEach(p => {
-        const dateKey = p.timestamp.toLocaleDateString('pt-BR');
-        if (dailyMap[dateKey]) dailyMap[dateKey].push(p);
-      });
-
-      let totalOvertimeMinutes = 0;
-      let totalDelayMinutes = 0;
-
-      const detailedDaily = Object.entries(dailyMap).sort().map(([date, dayPunches]) => {
-        const special = dayPunches.find(p => p.type === 'FOLGA' || p.type === 'FERIADO');
-        
-        const ins = dayPunches.filter(p => p.type === 'IN').sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-        const outs = dayPunches.filter(p => p.type === 'OUT').sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-        
-        const dateParts = date.split('/');
-        const dayObj = new Date(parseInt(dateParts[2]), parseInt(dateParts[1]) - 1, parseInt(dateParts[0]));
-        const isSaturday = dayObj.getDay() === 6;
-        const isSunday = dayObj.getDay() === 0;
-
-        let hoursWorked = 0;
-        for(let i=0; i < Math.min(ins.length, outs.length); i++) {
-          hoursWorked += (outs[i].timestamp.getTime() - ins[i].timestamp.getTime()) / (1000 * 60 * 60);
-        }
-
-        const expectedHours = isSunday ? 0 : (isSaturday ? 4 : 8);
-        const diff = dayPunches.length > 0 ? (hoursWorked - expectedHours) : 0;
-
-        let dailyResult = "--";
-        // Fix: Added 'SPECIAL' to the allowed union types to fix "Type 'SPECIAL' is not assignable" error.
-        let resultType: 'EXTRA' | 'DELAY' | 'NORMAL' | 'SPECIAL' = 'NORMAL';
-
-        if (special) {
-            dailyResult = special.type;
-            resultType = 'SPECIAL';
-        } else if (diff > 0.02) {
-          dailyResult = `+${Math.floor(diff)}h ${Math.round((diff % 1) * 60)}m`;
-          resultType = 'EXTRA';
-          totalOvertimeMinutes += diff * 60;
-        } else if (diff < -0.02 && expectedHours > 0) {
-          const absDiff = Math.abs(diff);
-          dailyResult = `-${Math.floor(absDiff)}h ${Math.round((absDiff % 1) * 60)}m`;
-          resultType = 'DELAY';
-          totalDelayMinutes += absDiff * 60;
-        } else if (dayPunches.length > 0) {
-            dailyResult = "OK";
-        }
-
-        return { 
-          date, 
-          dayOfWeek: dayObj.toLocaleDateString('pt-BR', { weekday: 'short' }).toUpperCase(),
-          punch1: ins[0]?.timestamp,
-          punch2: outs[0]?.timestamp,
-          punch3: ins[1]?.timestamp,
-          punch4: outs[1]?.timestamp,
-          dailyResult, 
-          resultType,
-          isWeekend: isSunday || isSaturday
-        };
-      });
-
-      return {
-        ...emp,
-        dailyExtract: detailedDaily,
-        totalOvertime: `${Math.floor(totalOvertimeMinutes / 60)}h ${Math.round(totalOvertimeMinutes % 60)}m`,
-        totalDelay: `${Math.floor(totalDelayMinutes / 60)}h ${Math.round(totalDelayMinutes % 60)}m`,
-        absences: detailedDaily.filter(d => d.resultType === 'NORMAL' && (!d.punch1 && !d.isWeekend)).length
-      };
-    });
-  }, [employees, punches, selectedCompetency]);
-
-  const handleSaveEmployee = (e: React.FormEvent) => {
-    e.preventDefault();
+  // Effect to populate form when editing
+  useEffect(() => {
     if (editingEmployeeId) {
-      const existing = employees.find(emp => emp.id === editingEmployeeId);
-      if (existing) {
-        onUpdateEmployee({
-          ...existing,
-          name: formEmp.name.toUpperCase(),
-          username: formEmp.username.toLowerCase(),
-          role: formEmp.role,
-          password: formEmp.password || existing.password
+      const emp = employees.find(e => e.id === editingEmployeeId);
+      if (emp) {
+        setFormData({
+          name: emp.name,
+          role: emp.role,
+          cpf: emp.cpf || '',
+          username: emp.username,
+          password: emp.password || '',
+          shift: emp.shift
         });
-        triggerToast('Alterações salvas!');
+        setIsModalOpen(true);
       }
-    } else {
-      const id = `user-${Math.random().toString(36).substr(2, 9)}`;
-      onAddEmployee({
-        id,
-        name: formEmp.name.toUpperCase(),
-        username: formEmp.username.toLowerCase(),
-        company: 'ULTRANET',
-        role: formEmp.role,
-        shift: '08:00 - 18:00',
-        userType: 'COLABORADOR',
-        password: formEmp.password
-      });
-      triggerToast('Novo acesso criado!');
     }
-    closeModal();
-  };
+  }, [editingEmployeeId, employees]);
 
-  const openEditModal = (emp: UserProfile) => {
-    setEditingEmployeeId(emp.id);
-    setFormEmp({
-      name: emp.name,
-      username: emp.username,
-      role: emp.role,
-      password: emp.password || ''
+  const stats = useMemo(() => {
+    const today = new Date().toDateString();
+    const todayPunches = punches.filter(p => new Date(p.timestamp).toDateString() === today);
+    const uniqueUsersToday = new Set(todayPunches.map(p => p.userId)).size;
+    
+    return {
+      total: employees.length,
+      active: uniqueUsersToday,
+      absent: employees.length - uniqueUsersToday,
+      productivity: employees.length > 0 ? Math.round((uniqueUsersToday / employees.length) * 100) : 0
+    };
+  }, [punches, employees]);
+
+  const filteredEmployees = useMemo(() => {
+    return employees.filter(emp => 
+      emp.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      emp.role.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      emp.cpf?.includes(searchTerm)
+    );
+  }, [employees, searchTerm]);
+
+  // Cálculo de Relatório Mensal com Filtro e Detalhe de Faltas
+  const monthlyReportData = useMemo(() => {
+    if (reportType !== 'MENSAL') return [];
+    
+    const [year, month] = reportMonth.split('-').map(Number);
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const workHoursPerDay = 8;
+
+    const targetEmployees = reportFilterEmployeeId === 'all' 
+      ? employees 
+      : employees.filter(e => e.id === reportFilterEmployeeId);
+
+    return targetEmployees.map(emp => {
+      let totalMinutesWorked = 0;
+      let absenceDays: string[] = [];
+      let overtimeMinutes = 0;
+      let daysPresent = 0;
+
+      for (let day = 1; day <= daysInMonth; day++) {
+        const date = new Date(year, month - 1, day);
+        const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+        const dateStr = date.toLocaleDateString('pt-BR');
+        
+        const dayPunches = punches.filter(p => 
+          p.userId === emp.id && 
+          new Date(p.timestamp).toLocaleDateString('pt-BR') === dateStr
+        );
+
+        const hasSpecialStatus = dayPunches.some(p => p.type === 'FOLGA' || p.type === 'FERIADO');
+        
+        if (dayPunches.length > 0 && !hasSpecialStatus) {
+          daysPresent++;
+          const sorted = [...dayPunches].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+          let dayMinutes = 0;
+          
+          for (let i = 0; i < sorted.length - 1; i += 2) {
+            if (sorted[i].type === 'IN' && sorted[i+1]?.type === 'OUT') {
+              const diff = (new Date(sorted[i+1].timestamp).getTime() - new Date(sorted[i].timestamp).getTime()) / 60000;
+              dayMinutes += diff;
+            }
+          }
+          
+          totalMinutesWorked += dayMinutes;
+          const expectedMinutes = workHoursPerDay * 60;
+          if (dayMinutes > expectedMinutes) {
+            overtimeMinutes += (dayMinutes - expectedMinutes);
+          }
+        } else if (!isWeekend && !hasSpecialStatus && date <= new Date()) {
+          absenceDays.push(String(day).padStart(2, '0'));
+        }
+      }
+
+      return {
+        id: emp.id,
+        name: emp.name,
+        role: emp.role,
+        daysPresent,
+        absences: absenceDays.length,
+        absenceDays,
+        overtime: Math.round(overtimeMinutes / 60) + 'h ' + Math.round(overtimeMinutes % 60) + 'm',
+        totalHours: Math.round(totalMinutesWorked / 60) + 'h'
+      };
     });
-    setIsModalOpen(true);
+  }, [employees, punches, reportMonth, reportType, reportFilterEmployeeId]);
+
+  // Cálculo de Relatório Diário com Filtro
+  const dailyReportData = useMemo(() => {
+    if (reportType !== 'DIARIO') return [];
+    const dateStr = new Date(reportDay + 'T12:00:00').toLocaleDateString('pt-BR');
+    
+    const targetEmployees = reportFilterEmployeeId === 'all' 
+      ? employees 
+      : employees.filter(e => e.id === reportFilterEmployeeId);
+
+    return targetEmployees.map(emp => {
+      const dayPunches = punches.filter(p => 
+        p.userId === emp.id && 
+        new Date(p.timestamp).toLocaleDateString('pt-BR') === dateStr
+      );
+      
+      const hasSpecialStatus = dayPunches.find(p => p.type === 'FOLGA' || p.type === 'FERIADO');
+      
+      return {
+        id: emp.id,
+        name: emp.name,
+        punches: dayPunches.filter(p => p.type === 'IN' || p.type === 'OUT').sort((a,b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()),
+        status: hasSpecialStatus ? hasSpecialStatus.type : (dayPunches.length > 0 ? 'PRESENTE' : 'AUSENTE')
+      };
+    });
+  }, [employees, punches, reportDay, reportType, reportFilterEmployeeId]);
+
+  const handleAddOrUpdateSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    const empData: UserProfile = {
+      id: editingEmployeeId || Math.random().toString(36).substr(2, 9),
+      name: formData.name,
+      role: formData.role,
+      cpf: formData.cpf,
+      username: formData.username,
+      password: formData.password,
+      shift: formData.shift,
+      company: 'Ultranet Provedor',
+      userType: 'COLABORADOR'
+    };
+
+    if (editingEmployeeId) {
+      onUpdateEmployee(empData);
+    } else {
+      onAddEmployee(empData);
+    }
+
+    handleCloseModal();
   };
 
-  const closeModal = () => {
+  const handleCloseModal = () => {
     setIsModalOpen(false);
     setEditingEmployeeId(null);
-    setFormEmp({ name: '', username: '', role: 'TECNICO', password: '' });
-    setShowPassword(false);
+    setFormData({ name: '', role: '', cpf: '', username: '', password: '', shift: '08:00 - 12:00 / 13:00 - 17:00' });
   };
 
-  const handleConfirmDelete = (e: React.MouseEvent, id: string) => {
+  const handleManualPunchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    e.stopPropagation();
-    const emp = employees.find(e => e.id === id);
-    if (!emp) return;
-    if (window.confirm(`ATENÇÃO: Deseja realmente excluir ${emp.name}?`)) {
-      onDeleteEmployee(id);
-      triggerToast('Colaborador removido!');
-    }
-  };
-
-  const handleConfirmAdjustment = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!adjustmentData.employeeId) return;
-    const emp = employees.find(e => e.id === adjustmentData.employeeId);
-    if (!emp) return;
+    const selectedEmp = employees.find(emp => emp.id === adjustmentData.userId);
+    if (!selectedEmp) return;
 
     const [year, month, day] = adjustmentData.date.split('-').map(Number);
-    
-    if (adjustmentData.type === 'FOLGA' || adjustmentData.type === 'FERIADO') {
-      onManualPunch({
-        id: `m-${Math.random().toString(36)}`,
-        userId: emp.id,
-        userName: emp.name,
-        timestamp: new Date(year, month - 1, day, 12, 0),
-        location: { lat: 0, lng: 0, address: "Manual" },
-        type: adjustmentData.type,
-        status: PunchStatus.ACCEPTED
-      });
-    } else {
-      // Lançar 4 batidas automáticas para o ajuste se for "Esquecimento"
-      const times = [adjustmentData.startTime, adjustmentData.endTime, adjustmentData.startTime2, adjustmentData.endTime2];
-      times.forEach((time, idx) => {
-        const [h, m] = time.split(':').map(Number);
-        onManualPunch({
-          id: `m-${idx}-${Math.random().toString(36)}`,
-          userId: emp.id,
-          userName: emp.name,
-          timestamp: new Date(year, month - 1, day, h, m),
-          location: { lat: 0, lng: 0 },
-          type: idx % 2 === 0 ? 'IN' : 'OUT',
-          status: PunchStatus.ACCEPTED,
-          justification: adjustmentData.reason
-        });
-      });
+    const [hours, minutes] = adjustmentData.time.split(':').map(Number);
+    const timestamp = new Date(year, month - 1, day, hours, minutes);
+
+    const manualPunch: PunchRecord = {
+      id: Math.random().toString(36).substr(2, 9),
+      userId: selectedEmp.id,
+      userName: selectedEmp.name,
+      timestamp,
+      location: { lat: 0, lng: 0, address: "Lançamento Manual (Adm)" },
+      justification: adjustmentData.justification || `Ajuste Administrativo: ${adjustmentData.type}`,
+      status: PunchStatus.ACCEPTED,
+      type: adjustmentData.type
+    };
+
+    onManualPunch(manualPunch);
+    setAdjustmentData({
+      userId: '',
+      type: 'IN',
+      date: new Date().toISOString().split('T')[0],
+      time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      justification: ''
+    });
+    alert('Registro manual efetuado com sucesso!');
+  };
+
+  const handlePrint = () => {
+    setShowPrintPreview(false);
+    setTimeout(() => {
+      window.print();
+    }, 100);
+  };
+
+  const confirmDelete = () => {
+    if (employeeToDelete) {
+      onDeleteEmployee(employeeToDelete.id);
+      setEmployeeToDelete(null);
     }
-    triggerToast('Lançamento realizado!');
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && onRestore) {
+      if (confirm('A restauração irá sobrescrever todos os dados atuais por este backup. Deseja continuar?')) {
+        onRestore(file);
+      }
+    }
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   return (
-    <div className="space-y-8 pb-12">
-      <div className="bg-white p-2 rounded-2xl border border-slate-200 shadow-sm sticky top-20 z-20 no-print max-w-xl mx-auto flex gap-2">
+    <div className="space-y-8 animate-fadeIn max-w-6xl mx-auto pb-20">
+      
+      {/* Navegação por Abas */}
+      <div className="flex justify-center no-print">
+        <div className="bg-white p-2 rounded-2xl shadow-sm border border-slate-100 flex gap-1">
           {[
-            { id: 'OVERVIEW', label: 'Início', icon: LayoutDashboard }, 
-            { id: 'EMPLOYEES', label: 'Equipe', icon: Users }, 
-            { id: 'EXTRACT', label: 'Folha', icon: TrendingUp }, 
-            { id: 'ADJUST', label: 'Ajuste', icon: AlertTriangle }
-          ].map(item => (
-            <button key={item.id} onClick={() => setTab(item.id as any)} className={`flex-1 flex flex-col items-center justify-center gap-1 p-2.5 rounded-xl transition-all ${tab === item.id ? 'bg-[#710087] text-white shadow-md' : 'text-slate-400 hover:bg-slate-50'}`}>
-              <item.icon size={18} />
-              <span className="text-[8px] font-bold uppercase tracking-tighter">{item.label}</span>
+            { id: 'INICIO', label: 'INÍCIO', icon: LayoutDashboard },
+            { id: 'EQUIPE', label: 'EQUIPE', icon: Users },
+            { id: 'FOLHA', label: 'FOLHA', icon: FileText },
+            { id: 'AJUSTE', label: 'AJUSTE', icon: Settings },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as any)}
+              className={`flex flex-col items-center justify-center w-24 h-20 rounded-xl transition-all gap-2 ${
+                activeTab === tab.id 
+                ? 'bg-[#710087] text-white shadow-lg shadow-purple-100' 
+                : 'text-slate-400 hover:bg-slate-50'
+              }`}
+            >
+              <tab.icon size={22} />
+              <span className="text-[9px] font-black tracking-widest">{tab.label}</span>
             </button>
           ))}
+        </div>
       </div>
 
-      <div className="transition-all duration-300">
-        {tab === 'OVERVIEW' && (
-          <div className="space-y-8 animate-fadeIn no-print">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                <div className="w-10 h-10 bg-purple-50 text-[#710087] rounded-xl flex items-center justify-center mb-4 border border-purple-100"><Users size={20} /></div>
-                <p className="text-3xl font-extrabold text-slate-900 leading-none">{employees.length}</p>
-                <p className="text-[10px] text-slate-500 font-bold uppercase mt-3 tracking-widest">Equipe Ultranet</p>
+      {activeTab === 'INICIO' && (
+        <div className="space-y-8 animate-fadeIn no-print">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
+              <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center text-[#710087] mb-4">
+                <Users size={20} />
               </div>
-              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                <div className="w-10 h-10 bg-green-50 text-green-600 rounded-xl flex items-center justify-center mb-4 border border-green-100"><UserCheck2 size={20} /></div>
-                <p className="text-3xl font-extrabold text-slate-900 leading-none">{todayPresenceStatus.filter(s => s.hasPunched).length}</p>
-                <p className="text-[10px] text-slate-500 font-bold uppercase mt-3 tracking-widest">Ativos Hoje</p>
-              </div>
-              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                <div className="w-10 h-10 bg-red-50 text-red-600 rounded-xl flex items-center justify-center mb-4 border border-red-100"><UserX size={20} /></div>
-                <p className="text-3xl font-extrabold text-slate-900 leading-none">{todayPresenceStatus.filter(s => !s.hasPunched).length}</p>
-                <p className="text-[10px] text-slate-500 font-bold uppercase mt-3 tracking-widest">Ausentes Hoje</p>
-              </div>
-              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                <div className="w-10 h-10 bg-orange-50 text-orange-600 rounded-xl flex items-center justify-center mb-4 border border-orange-100"><TrendingUp size={20} /></div>
-                <p className="text-3xl font-extrabold text-slate-900 leading-none">0%</p>
-                <p className="text-[10px] text-slate-500 font-bold uppercase mt-3 tracking-widest">Produtividade</p>
-              </div>
+              <p className="text-4xl font-black text-slate-900 tracking-tighter">{stats.total}</p>
+              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">Equipe</p>
             </div>
-
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-              <div className="px-8 py-5 border-b border-slate-100 bg-slate-50/50">
-                 <h3 className="text-xs font-bold text-slate-900 uppercase tracking-widest flex items-center gap-2"><UserCheck size={18} className="text-[#710087]" /> Status em Tempo Real</h3>
+            <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
+              <div className="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center text-green-600 mb-4">
+                <UserCheck size={20} />
               </div>
-              <div className="divide-y divide-slate-100">
-                 {employees.length > 0 ? todayPresenceStatus.map(status => (
-                   <div key={status.id} className="px-8 py-5 flex items-center justify-between hover:bg-slate-50 transition-all">
+              <p className="text-4xl font-black text-slate-900 tracking-tighter">{stats.active}</p>
+              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">Ativos Hoje</p>
+            </div>
+            <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
+              <div className="w-10 h-10 bg-red-50 rounded-xl flex items-center justify-center text-red-500 mb-4">
+                <UserX size={20} />
+              </div>
+              <p className="text-4xl font-black text-slate-900 tracking-tighter">{stats.absent}</p>
+              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">Ausentes</p>
+            </div>
+            <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
+              <div className="w-10 h-10 bg-orange-50 rounded-xl flex items-center justify-center text-orange-500 mb-4">
+                <TrendingUp size={20} />
+              </div>
+              <p className="text-4xl font-black text-slate-900 tracking-tighter">{stats.productivity}%</p>
+              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">Presença</p>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
+            <div className="p-8 border-b border-slate-50 flex items-center gap-3">
+              <Activity size={18} className="text-[#710087]" />
+              <h3 className="text-xs font-black text-slate-900 uppercase tracking-[2px]">Status em Tempo Real</h3>
+            </div>
+            <div className="p-8">
+              {punches.length > 0 ? (
+                <div className="space-y-4">
+                  {punches.slice(0, 5).map(p => (
+                    <div key={p.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
                       <div className="flex items-center gap-4">
-                         <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold border ${status.hasPunched ? 'bg-green-50 border-green-100 text-green-700' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>{status.name[0]}</div>
-                         <div>
-                            <p className="text-sm font-bold text-slate-900 uppercase leading-tight">{status.name}</p>
-                            <p className="text-[10px] text-slate-500 font-medium uppercase mt-1 tracking-tight">{status.role}</p>
-                         </div>
-                      </div>
-                      <div className="flex items-center gap-6">
-                         {status.special ? (
-                            <div className="px-3 py-1.5 rounded-lg border text-[10px] font-bold uppercase tracking-wider bg-blue-50 border-blue-100 text-blue-600">{status.special}</div>
-                         ) : status.hasPunched ? (
-                           <div className="text-right">
-                              <div className="flex items-center gap-2 text-green-600 bg-green-50 px-3 py-1.5 rounded-lg border border-green-100 justify-end">
-                                 <CheckCircle size={14} /><span className="text-[10px] font-bold uppercase tracking-wider">Registrado</span>
-                              </div>
-                           </div>
-                         ) : (
-                           <div className="flex items-center gap-2 text-red-500 bg-red-50 px-3 py-1.5 rounded-lg border border-red-100"><AlertTriangle size={14} /><span className="text-[10px] font-bold uppercase tracking-wider">Ponto Ausente</span></div>
-                         )}
-                      </div>
-                   </div>
-                 )) : (
-                    <div className="p-12 text-center text-slate-400 text-[10px] font-bold uppercase tracking-widest">Aguardando cadastro de equipe...</div>
-                 )}
-              </div>
-            </div>
-          </div>
-        )}
-        
-        {tab === 'EMPLOYEES' && (
-          <div className="space-y-6 animate-fadeIn no-print">
-            <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-              <div className="relative group w-full md:max-w-md">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                <input type="text" className="w-full pl-11 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-bold outline-none focus:border-[#710087] transition-all text-sm" placeholder="Pesquisar..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-              </div>
-              <button onClick={() => setIsModalOpen(true)} className="w-full md:w-auto px-6 py-3.5 bg-[#710087] text-white rounded-xl font-bold text-xs uppercase tracking-widest shadow-lg flex items-center justify-center gap-2 hover:bg-[#5a006d] transition-all"><Plus size={18} /> Novo Acesso</button>
-            </div>
-            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
-              <table className="w-full text-left">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200">
-                    <th className="px-8 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Colaborador</th>
-                    <th className="px-8 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Acesso</th>
-                    <th className="px-8 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest text-right">Ações</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {employees.filter(e => e.name.toLowerCase().includes(searchTerm.toLowerCase())).map(emp => (
-                    <tr key={emp.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-8 py-5">
-                        <p className="text-sm font-bold text-slate-900 uppercase leading-none">{emp.name}</p>
-                        <p className="text-[10px] text-slate-400 font-bold tracking-tight mt-1">{emp.role} • {emp.company}</p>
-                      </td>
-                      <td className="px-8 py-5"><span className="text-[9px] font-bold bg-purple-50 text-[#710087] border border-purple-100 px-3 py-1 rounded-lg uppercase">@{emp.username}</span></td>
-                      <td className="px-8 py-5 text-right">
-                        <div className="flex justify-end items-center gap-2">
-                          <button onClick={() => openEditModal(emp)} className="p-2.5 text-slate-400 hover:text-[#710087] hover:bg-purple-50 rounded-xl"><Edit2 size={18} /></button>
-                          <button onClick={(e) => handleConfirmDelete(e, emp.id)} className="p-2.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl"><Trash2 size={18} /></button>
+                        <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center font-bold text-[#710087] shadow-sm uppercase">
+                          {p.userName[0]}
                         </div>
-                      </td>
-                    </tr>
+                        <div>
+                          <p className="text-xs font-black uppercase text-slate-800">{p.userName}</p>
+                          <p className="text-[9px] font-bold text-slate-400 uppercase">{p.type === 'IN' ? 'Entrada' : p.type === 'OUT' ? 'Saída' : p.type} registrada</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-black text-slate-900">{new Date(p.timestamp).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}</p>
+                      </div>
+                    </div>
                   ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {tab === 'EXTRACT' && (
-           <div className="space-y-6">
-              {!selectedEmployeeForDetail ? (
-                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 no-print">
-                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 border-b border-slate-100 pb-6">
-                    <div>
-                      <h2 className="text-xl font-extrabold text-slate-900 uppercase">Gestão de Folha Mensal</h2>
-                      <p className="text-[10px] text-[#710087] font-bold uppercase mt-1 tracking-widest">Relatórios 2026</p>
-                    </div>
-                    <div className="relative group">
-                      <select value={selectedCompetency} onChange={(e) => setSelectedCompetency(e.target.value)} className="pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold text-slate-700 uppercase outline-none focus:border-[#710087] appearance-none cursor-pointer">
-                        {months.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-                      </select>
-                      <Calendar size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {employeeStats.map(stat => (
-                      <div key={stat.id} onClick={() => setSelectedEmployeeForDetail(stat.id)} className="p-6 bg-white border border-slate-200 rounded-2xl hover:border-[#710087] transition-all cursor-pointer shadow-sm active:scale-[0.98]">
-                        <p className="text-sm font-bold text-slate-900 uppercase truncate mb-4">{stat.name}</p>
-                        <div className="grid grid-cols-3 gap-2 border-t border-slate-100 pt-4 text-center">
-                           <div><p className="text-xs font-bold text-green-600">+{stat.totalOvertime}</p><p className="text-[8px] text-slate-400 font-bold uppercase">EXTRAS</p></div>
-                           <div className="border-x border-slate-100"><p className="text-xs font-bold text-orange-600">-{stat.totalDelay}</p><p className="text-[8px] text-slate-400 font-bold uppercase">DÉBITO</p></div>
-                           <div><p className="text-xs font-bold text-red-500">{stat.absences}</p><p className="text-[8px] text-slate-400 font-bold uppercase">FALTAS</p></div>
-                        </div>
-                      </div>
-                    ))}
-                    {employees.length === 0 && <div className="col-span-full py-20 text-center text-slate-400 uppercase font-bold text-[10px] border-2 border-dashed border-slate-100 rounded-3xl">Nenhum funcionário cadastrado.</div>}
-                  </div>
                 </div>
               ) : (
-                <div className="bg-white p-6 md:p-12 rounded-2xl border border-slate-200 shadow-sm animate-fadeIn">
-                   {/* Header do Relatório (Oculto em tela se quiser, mas aqui visível) */}
-                   <div className="flex items-center justify-between mb-8 no-print">
-                      <button onClick={() => setSelectedEmployeeForDetail(null)} className="text-[10px] font-bold text-[#710087] uppercase tracking-widest flex items-center gap-2"><ArrowRight size={18} className="rotate-180" /> Voltar</button>
-                      <button onClick={handlePrintMirror} className="flex items-center gap-3 px-6 py-3 bg-[#710087] text-white rounded-xl font-bold text-[10px] uppercase tracking-widest shadow-lg"><Printer size={18} /> Imprimir Folha de Ponto</button>
-                   </div>
-                   
-                   {(() => {
-                      const stat = employeeStats.find(s => s.id === selectedEmployeeForDetail);
-                      if (!stat) return null;
-                      return (
-                        <div className="space-y-8">
-                           {/* Cabeçalho Formal para Impressão */}
-                           <div className="border-b-2 border-black pb-6 flex flex-col md:flex-row justify-between items-start gap-4">
-                              <div className="space-y-1">
-                                 <h1 className="text-2xl font-black text-black uppercase tracking-tighter">ULTRANET PROVEDOR</h1>
-                                 <p className="text-[10px] font-bold text-black uppercase">CNPJ: 00.000.000/0001-00 | Endereço: Matriz Ultranet</p>
-                                 <p className="text-lg font-bold text-[#710087] uppercase mt-2">Folha de Ponto Individual de Trabalho</p>
-                              </div>
-                              <div className="text-right border-l-0 md:border-l border-black pl-0 md:pl-6 space-y-1">
-                                 <p className="text-[10px] font-bold text-black uppercase">Competência: <span className="text-sm">{months.find(m => m.value === selectedCompetency)?.label}</span></p>
-                                 <p className="text-[10px] font-bold text-black uppercase">Página: 01/01</p>
-                              </div>
-                           </div>
-
-                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-black border border-black p-4 bg-gray-50/50">
-                              <div><p className="text-[9px] font-bold uppercase">Nome do Colaborador</p><p className="text-sm font-bold uppercase">{stat.name}</p></div>
-                              <div><p className="text-[9px] font-bold uppercase">Cargo / Função</p><p className="text-sm font-bold uppercase">{stat.role}</p></div>
-                              <div><p className="text-[9px] font-bold uppercase">Horário de Trabalho</p><p className="text-sm font-bold uppercase">08:00 às 12:00 | 13:00 às 17:00</p></div>
-                              <div><p className="text-[9px] font-bold uppercase">Unidade</p><p className="text-sm font-bold uppercase">{stat.company}</p></div>
-                           </div>
-
-                           {/* Tabela de Ponto */}
-                           <div className="overflow-x-auto">
-                              <table className="w-full border-collapse border border-black">
-                                 <thead>
-                                    <tr className="bg-black text-white">
-                                       <th rowSpan={2} className="border border-black p-2 text-[9px] uppercase">Data</th>
-                                       <th rowSpan={2} className="border border-black p-2 text-[9px] uppercase">Dia</th>
-                                       <th colSpan={2} className="border border-black p-2 text-[9px] uppercase">Turno 1</th>
-                                       <th colSpan={2} className="border border-black p-2 text-[9px] uppercase">Turno 2</th>
-                                       <th rowSpan={2} className="border border-black p-2 text-[9px] uppercase">Saldo</th>
-                                       <th rowSpan={2} className="border border-black p-2 text-[9px] uppercase">Assinatura</th>
-                                    </tr>
-                                    <tr className="bg-gray-100 text-black">
-                                       <th className="border border-black p-1 text-[8px] uppercase">Entrada</th>
-                                       <th className="border border-black p-1 text-[8px] uppercase">Saída</th>
-                                       <th className="border border-black p-1 text-[8px] uppercase">Entrada</th>
-                                       <th className="border border-black p-1 text-[8px] uppercase">Saída</th>
-                                    </tr>
-                                 </thead>
-                                 <tbody>
-                                    {stat.dailyExtract.map((day, idx) => (
-                                       <tr key={idx} className={`${day.isWeekend ? 'bg-gray-50' : ''} text-center hover:bg-slate-50 transition-colors`}>
-                                          <td className="border border-black p-1 text-[10px] font-bold">{day.date.split('/')[0]}</td>
-                                          <td className="border border-black p-1 text-[9px]">{day.dayOfWeek}</td>
-                                          <td className="border border-black p-1 text-[10px] font-medium">{day.punch1 ? day.punch1.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}) : '--:--'}</td>
-                                          <td className="border border-black p-1 text-[10px] font-medium">{day.punch2 ? day.punch2.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}) : '--:--'}</td>
-                                          <td className="border border-black p-1 text-[10px] font-medium">{day.punch3 ? day.punch3.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}) : '--:--'}</td>
-                                          <td className="border border-black p-1 text-[10px] font-medium">{day.punch4 ? day.punch4.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}) : '--:--'}</td>
-                                          <td className="border border-black p-1 text-[9px] font-bold uppercase">{day.dailyResult}</td>
-                                          <td className="border border-black p-1 w-24"></td>
-                                       </tr>
-                                    ))}
-                                 </tbody>
-                                 <tfoot>
-                                    <tr className="bg-black text-white font-bold">
-                                       <td colSpan={6} className="p-2 text-right text-[10px] uppercase">Total Mensal</td>
-                                       <td className="p-2 text-[10px] uppercase">+{stat.totalOvertime} / -{stat.totalDelay}</td>
-                                       <td></td>
-                                    </tr>
-                                 </tfoot>
-                              </table>
-                           </div>
-
-                           {/* Rodapé de Assinatura */}
-                           <div className="pt-20 grid grid-cols-1 md:grid-cols-2 gap-16">
-                              <div className="text-center space-y-2">
-                                 <div className="border-t border-black pt-2"></div>
-                                 <p className="text-[10px] font-bold uppercase text-black">{stat.name}</p>
-                                 <p className="text-[8px] uppercase text-gray-500">Assinatura do Colaborador</p>
-                              </div>
-                              <div className="text-center space-y-2">
-                                 <div className="border-t border-black pt-2"></div>
-                                 <p className="text-[10px] font-bold uppercase text-black">ULTRANET PROVEDOR</p>
-                                 <p className="text-[8px] uppercase text-gray-500">Assinatura da Empresa (Gestão de RH)</p>
-                              </div>
-                           </div>
-                           <p className="text-center text-[8px] text-gray-400 uppercase tracking-widest mt-12">Documento gerado eletronicamente via Ultranet Ponto 4.0 - IP: 192.168.0.1</p>
-                        </div>
-                      )
-                   })()}
-                </div>
+                <div className="py-20 text-center text-[10px] font-black text-slate-300 uppercase tracking-[4px]">Sem atividades recentes</div>
               )}
-           </div>
-        )}
-
-        {tab === 'ADJUST' && (
-          <div className="animate-fadeIn max-w-xl mx-auto space-y-6 no-print">
-            <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm">
-              <div className="mb-8"><h2 className="text-xl font-extrabold text-slate-900 uppercase">Ajuste e Lançamentos</h2><p className="text-[10px] text-[#710087] font-bold uppercase tracking-widest mt-1">Correção de Batidas</p></div>
-              <form onSubmit={handleConfirmAdjustment} className="space-y-6">
-                <div className="space-y-2"><label className="text-[10px] font-bold text-slate-500 uppercase">Colaborador</label><select className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-bold" value={adjustmentData.employeeId} onChange={(e) => setAdjustmentData({...adjustmentData, employeeId: e.target.value})} required><option value="">Selecionar...</option>{employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}</select></div>
-                <div className="grid grid-cols-3 gap-2">{[{ id: 'ESQUECIMENTO', label: 'Ajuste', icon: History }, { id: 'FOLGA', label: 'Folga', icon: Sun }, { id: 'FERIADO', label: 'Feriado', icon: Palmtree }].map(type => (<button key={type.id} type="button" onClick={() => setAdjustmentData({...adjustmentData, type: type.id as any})} className={`flex flex-col items-center p-3 rounded-xl border-2 transition-all gap-1.5 ${adjustmentData.type === type.id ? 'border-[#710087] bg-purple-50 text-[#710087]' : 'border-slate-100 bg-slate-50 text-slate-400'}`}><type.icon size={18} /><span className="text-[9px] font-bold uppercase">{type.label}</span></button>))}</div>
-                <div className="space-y-2"><label className="text-[10px] font-bold text-slate-500 uppercase">Data do Evento</label><input type="date" value={adjustmentData.date} onChange={(e) => setAdjustmentData({...adjustmentData, date: e.target.value})} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-bold" required /></div>
-                
-                {adjustmentData.type === 'ESQUECIMENTO' && (
-                    <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-1"><label className="text-[8px] font-bold uppercase text-slate-400">Entrada 1</label><input type="time" value={adjustmentData.startTime} onChange={(e) => setAdjustmentData({...adjustmentData, startTime: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg font-bold" /></div>
-                            <div className="space-y-1"><label className="text-[8px] font-bold uppercase text-slate-400">Saída 1</label><input type="time" value={adjustmentData.endTime} onChange={(e) => setAdjustmentData({...adjustmentData, endTime: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg font-bold" /></div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-1"><label className="text-[8px] font-bold uppercase text-slate-400">Entrada 2</label><input type="time" value={adjustmentData.startTime2} onChange={(e) => setAdjustmentData({...adjustmentData, startTime2: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg font-bold" /></div>
-                            <div className="space-y-1"><label className="text-[8px] font-bold uppercase text-slate-400">Saída 2</label><input type="time" value={adjustmentData.endTime2} onChange={(e) => setAdjustmentData({...adjustmentData, endTime2: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg font-bold" /></div>
-                        </div>
-                    </div>
-                )}
-                
-                <div className="space-y-2"><label className="text-[10px] font-bold text-slate-500 uppercase">Motivação</label><textarea value={adjustmentData.reason} onChange={(e) => setAdjustmentData({...adjustmentData, reason: e.target.value})} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl text-sm" placeholder="Obrigatório..." required /></div>
-                <button type="submit" className="w-full py-5 bg-[#0f172a] hover:bg-[#710087] text-white rounded-xl font-bold uppercase shadow-xl transition-all">Salvar Ajuste Mensal</button>
-              </form>
             </div>
           </div>
-        )}
-      </div>
-
-      {showSuccessToast && (
-        <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[100] bg-slate-900 text-white px-8 py-3 rounded-2xl flex items-center gap-3 shadow-2xl animate-fadeIn">
-           <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center"><Check size={14} /></div>
-           <span className="text-[10px] font-bold uppercase tracking-widest">{toastMessage}</span>
         </div>
       )}
 
-      {isModalOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white w-full max-w-md rounded-2xl overflow-hidden shadow-2xl border border-slate-100">
-            <form onSubmit={handleSaveEmployee}>
-              <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                <h3 className="font-extrabold text-lg text-slate-900 uppercase">{editingEmployeeId ? 'Editar Colaborador' : 'Novo Colaborador'}</h3>
-                <button type="button" onClick={closeModal} className="p-2 text-slate-400 hover:text-slate-900"><X size={24} /></button>
+      {activeTab === 'EQUIPE' && (
+        <div className="space-y-6 no-print">
+          <div className="flex flex-wrap items-center justify-between gap-4 px-2">
+            <div>
+              <h2 className="text-lg font-black text-slate-900 uppercase tracking-[1px]">Gestão de Pessoas</h2>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[2px]">Administre os colaboradores da Ultranet</p>
+            </div>
+            <button 
+              onClick={() => { setEditingEmployeeId(null); setIsModalOpen(true); }}
+              className="px-6 py-4 bg-[#710087] text-white rounded-2xl font-black text-[10px] uppercase tracking-[2px] shadow-xl shadow-purple-100 hover:bg-[#5a006d] transition-all flex items-center gap-2 active:scale-95"
+            >
+              <Plus size={18} /> Novo Colaborador
+            </button>
+          </div>
+
+          <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden animate-fadeIn">
+            <div className="p-8 border-b border-slate-50 flex flex-wrap gap-4 justify-between items-center bg-slate-50/30">
+              <div className="relative flex-1 max-md:max-w-none max-w-md">
+                <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" />
+                <input 
+                  type="text" 
+                  placeholder="BUSCAR PELO NOME, CARGO OU CPF..." 
+                  value={searchTerm} 
+                  onChange={e => setSearchTerm(e.target.value)}
+                  className="w-full pl-11 pr-4 py-3.5 bg-white border border-slate-200 rounded-2xl text-[10px] font-black uppercase tracking-widest outline-none focus:border-[#710087] shadow-sm transition-all"
+                />
               </div>
-              <div className="p-8 space-y-4">
-                 <div className="space-y-1.5"><label className="text-[10px] font-bold text-slate-500 uppercase">Nome Completo</label><input type="text" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-bold" value={formEmp.name} onChange={e => setFormEmp({...formEmp, name: e.target.value})} required /></div>
-                 <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1.5"><label className="text-[10px] font-bold text-slate-500 uppercase">Usuário</label><input type="text" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-bold" value={formEmp.username} onChange={e => setFormEmp({...formEmp, username: e.target.value})} required /></div>
-                    <div className="space-y-1.5"><label className="text-[10px] font-bold text-slate-500 uppercase">Cargo</label><select className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-bold" value={formEmp.role} onChange={e => setFormEmp({...formEmp, role: e.target.value})}><option value="TECNICO">TECNICO</option><option value="SUPORTE">SUPORTE</option><option value="FINANCEIRO">FINANCEIRO</option><option value="GERENTE">GERENTE</option></select></div>
-                 </div>
-                 <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase">Senha de Acesso</label>
-                    <div className="relative">
-                       <input type={showPassword ? "text" : "password"} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-bold" value={formEmp.password} onChange={e => setFormEmp({...formEmp, password: e.target.value})} required={!editingEmployeeId} placeholder={editingEmployeeId ? "Deixe vazio para manter" : "••••••••"} />
-                       <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400">{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button>
+            </div>
+            <div className="divide-y divide-slate-50">
+              {filteredEmployees.length > 0 ? filteredEmployees.map(emp => (
+                <div key={emp.id} className="p-8 flex items-center justify-between hover:bg-slate-50/50 transition-colors group">
+                  <div className="flex items-center gap-6">
+                    <div className="w-14 h-14 bg-purple-50 text-[#710087] rounded-[1.25rem] flex items-center justify-center font-black text-xl border border-purple-100 shadow-sm group-hover:scale-105 transition-transform uppercase">
+                      {emp.name[0]}
                     </div>
-                 </div>
-                 <button type="submit" className="w-full py-4 bg-[#710087] text-white rounded-xl font-bold uppercase shadow-lg mt-4 active:scale-95 transition-all">Salvar Dados</button>
+                    <div>
+                      <p className="font-black text-slate-900 text-sm uppercase tracking-tight">{emp.name}</p>
+                      <div className="flex items-center gap-3 mt-1">
+                        <span className="text-[9px] bg-slate-100 text-slate-500 font-black px-2 py-0.5 rounded uppercase tracking-widest">{emp.role}</span>
+                        <div className="w-1 h-1 bg-slate-200 rounded-full" />
+                        <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">CPF: {emp.cpf || 'Não inf.'}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={() => setEditingEmployeeId(emp.id)}
+                      className="p-3 text-slate-300 hover:text-[#710087] hover:bg-purple-50 rounded-xl transition-all"
+                      title="Editar Colaborador"
+                    >
+                      <Edit3 size={18} />
+                    </button>
+                    <button 
+                      onClick={() => setEmployeeToDelete(emp)} 
+                      className="p-3 text-slate-200 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                      title="Excluir Colaborador"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
+                </div>
+              )) : (
+                <div className="p-24 text-center">
+                  <p className="text-[10px] font-black text-slate-300 uppercase tracking-[4px]">Nenhum colaborador encontrado</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'AJUSTE' && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fadeIn no-print">
+          <div className="lg:col-span-2 space-y-8">
+            <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden h-fit">
+              <div className="p-10 border-b border-slate-50 bg-slate-50/30">
+                <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">Lançamento Manual</h3>
+                <p className="text-[10px] font-bold text-[#710087] uppercase tracking-[2px] mt-2">Corrija ou registre ausências</p>
+              </div>
+              
+              <form onSubmit={handleManualPunchSubmit} className="p-10 space-y-6">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Colaborador</label>
+                  <div className="relative group">
+                    <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-[#710087]" size={18} />
+                    <select 
+                      required
+                      value={adjustmentData.userId}
+                      onChange={e => setAdjustmentData({...adjustmentData, userId: e.target.value})}
+                      className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-black uppercase tracking-widest outline-none focus:border-[#710087] transition-all appearance-none"
+                    >
+                      <option value="">SELECIONE UM FUNCIONÁRIO</option>
+                      {employees.map(emp => (
+                        <option key={emp.id} value={emp.id}>{emp.name.toUpperCase()}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tipo</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { id: 'IN', label: 'ENTRADA', icon: Clock },
+                        { id: 'OUT', label: 'SAÍDA', icon: Clock },
+                        { id: 'FOLGA', label: 'FOLGA', icon: Coffee },
+                        { id: 'FERIADO', label: 'FERIADO', icon: Palmtree },
+                      ].map(type => (
+                        <button
+                          key={type.id}
+                          type="button"
+                          onClick={() => setAdjustmentData({...adjustmentData, type: type.id as any})}
+                          className={`flex items-center justify-center gap-2 p-3.5 rounded-xl border text-[9px] font-black uppercase transition-all ${
+                            adjustmentData.type === type.id 
+                            ? 'bg-[#710087] text-white border-[#710087] shadow-md shadow-purple-50' 
+                            : 'bg-white text-slate-400 border-slate-100 hover:bg-slate-50'
+                          }`}
+                        >
+                          <type.icon size={14} />
+                          {type.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Data</label>
+                      <input 
+                        type="date" required
+                        value={adjustmentData.date}
+                        onChange={e => setAdjustmentData({...adjustmentData, date: e.target.value})}
+                        className="w-full px-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-black outline-none focus:border-[#710087] transition-all"
+                      />
+                    </div>
+                    {(adjustmentData.type === 'IN' || adjustmentData.type === 'OUT') && (
+                      <div className="space-y-1.5 animate-fadeIn">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Horário</label>
+                        <input 
+                          type="time" required
+                          value={adjustmentData.time}
+                          onChange={e => setAdjustmentData({...adjustmentData, time: e.target.value})}
+                          className="w-full px-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-black outline-none focus:border-[#710087] transition-all"
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Justificativa</label>
+                  <textarea 
+                    placeholder="MOTIVO DO AJUSTE..."
+                    value={adjustmentData.justification}
+                    onChange={e => setAdjustmentData({...adjustmentData, justification: e.target.value})}
+                    className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-medium resize-none h-24 outline-none focus:border-[#710087] transition-all"
+                  />
+                </div>
+
+                <div className="pt-4">
+                  <button type="submit" className="w-full py-5 bg-[#710087] text-white rounded-2xl font-black text-xs uppercase tracking-[3px] shadow-xl shadow-purple-100 hover:bg-[#5a006d] transition-all flex items-center justify-center gap-3 active:scale-[0.98]">
+                    <Save size={20} /> Salvar Lançamento
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            {/* Gerenciamento de Dados (Backup e Restauração) */}
+            <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
+               <div className="p-10 border-b border-slate-50 bg-slate-50/30 flex items-center gap-3">
+                  <Database size={20} className="text-[#710087]" />
+                  <div>
+                    <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight leading-none">Gerenciamento de Dados</h3>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[2px] mt-2">Segurança e Backup do Sistema</p>
+                  </div>
+               </div>
+               <div className="p-10 grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100 space-y-4">
+                    <h4 className="text-[10px] font-black text-slate-800 uppercase tracking-widest">Backup do Sistema</h4>
+                    <p className="text-[11px] text-slate-500 font-medium leading-relaxed">Exporte todos os dados de funcionários e registros de ponto para um arquivo de segurança.</p>
+                    <button 
+                      onClick={onBackup}
+                      className="w-full py-4 bg-white border border-slate-200 text-[#710087] rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-sm hover:bg-purple-50 hover:border-purple-200 transition-all flex items-center justify-center gap-2 active:scale-95"
+                    >
+                      <Download size={18} /> Exportar Backup (JSON)
+                    </button>
+                  </div>
+                  <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100 space-y-4">
+                    <h4 className="text-[10px] font-black text-slate-800 uppercase tracking-widest">Restaurar Dados</h4>
+                    <p className="text-[11px] text-slate-500 font-medium leading-relaxed">Importe dados de um arquivo de backup anterior para restaurar o sistema em um novo ambiente.</p>
+                    <input 
+                      type="file" 
+                      ref={fileInputRef} 
+                      onChange={handleFileChange} 
+                      accept=".json" 
+                      className="hidden" 
+                    />
+                    <button 
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg hover:bg-black transition-all flex items-center justify-center gap-2 active:scale-95"
+                    >
+                      <Upload size={18} /> Restaurar do Arquivo
+                    </button>
+                  </div>
+               </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden h-fit">
+             <div className="p-8 border-b border-slate-50">
+                <h3 className="text-xs font-black text-slate-900 uppercase tracking-[2px]">Ajustes Recentes</h3>
+             </div>
+             <div className="divide-y divide-slate-50 max-h-[500px] overflow-y-auto">
+               {punches.filter(p => p.location.address?.includes('Manual')).length > 0 ? (
+                  punches.filter(p => p.location.address?.includes('Manual')).map(p => (
+                    <div key={p.id} className="p-6">
+                      <p className="text-[10px] font-black uppercase text-slate-800">{p.userName}</p>
+                      <div className="flex justify-between items-center mt-2">
+                        <span className="text-[9px] font-bold text-slate-400">{new Date(p.timestamp).toLocaleDateString('pt-BR')}</span>
+                        <span className="text-[9px] font-black text-[#710087] bg-purple-50 px-2 py-0.5 rounded">{p.type}</span>
+                      </div>
+                    </div>
+                  ))
+               ) : (
+                  <div className="p-12 text-center text-[10px] font-black text-slate-300 uppercase">Sem ajustes</div>
+               )}
+             </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'FOLHA' && (
+        <div className="space-y-8 animate-fadeIn">
+          {/* Filtros de Relatório - Não imprimíveis */}
+          <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-wrap gap-6 items-end no-print">
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tipo de Relatório</label>
+              <div className="flex bg-slate-50 p-1.5 rounded-2xl border border-slate-200">
+                <button 
+                  onClick={() => setReportType('MENSAL')}
+                  className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${reportType === 'MENSAL' ? 'bg-[#710087] text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
+                >
+                  Mensal
+                </button>
+                <button 
+                  onClick={() => setReportType('DIARIO')}
+                  className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${reportType === 'DIARIO' ? 'bg-[#710087] text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
+                >
+                  Diário
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Filtrar Funcionário</label>
+              <select 
+                value={reportFilterEmployeeId}
+                onChange={e => setReportFilterEmployeeId(e.target.value)}
+                className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-[10px] font-black uppercase outline-none focus:border-[#710087] appearance-none pr-10"
+              >
+                <option value="all">TODOS OS FUNCIONÁRIOS</option>
+                {employees.map(emp => (
+                  <option key={emp.id} value={emp.id}>{emp.name.toUpperCase()}</option>
+                ))}
+              </select>
+            </div>
+
+            {reportType === 'MENSAL' ? (
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Competência</label>
+                <input 
+                  type="month" 
+                  value={reportMonth}
+                  onChange={(e) => setReportMonth(e.target.value)}
+                  className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-[10px] font-black uppercase outline-none focus:border-[#710087]"
+                />
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Data Específica</label>
+                <input 
+                  type="date" 
+                  value={reportDay}
+                  onChange={(e) => setReportDay(e.target.value)}
+                  className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-[10px] font-black uppercase outline-none focus:border-[#710087]"
+                />
+              </div>
+            )}
+
+            <button 
+              onClick={() => setShowPrintPreview(true)} 
+              className="ml-auto flex items-center gap-2 px-8 py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-[2px] hover:bg-black transition-all shadow-xl shadow-slate-100 active:scale-95"
+            >
+              <Eye size={18} /> Visualizar e Imprimir
+            </button>
+          </div>
+
+          {/* Área do Relatório - Mensal (Versão Web) */}
+          {reportType === 'MENSAL' && (
+            <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden no-print">
+              <div className="p-10 border-b border-slate-50 flex justify-between items-center">
+                <div>
+                  <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Consolidado Mensal</h3>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[2px] mt-2">Filtro: {reportFilterEmployeeId === 'all' ? 'Todos' : employees.find(e => e.id === reportFilterEmployeeId)?.name}</p>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead className="bg-slate-50 border-b border-slate-100">
+                    <tr>
+                      <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Colaborador</th>
+                      <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Faltas (Dias)</th>
+                      <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Horas Extras</th>
+                      <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Horas Totais</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {monthlyReportData.map(row => (
+                      <tr key={row.id} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="p-6">
+                          <p className="text-xs font-black text-slate-900 uppercase">{row.name}</p>
+                          <p className="text-[9px] font-bold text-slate-400 uppercase">{row.role}</p>
+                        </td>
+                        <td className="p-6 text-center">
+                          <div className="flex flex-col items-center gap-1">
+                            <span className={`px-3 py-1 rounded-lg text-[11px] font-black ${row.absences > 0 ? 'bg-red-50 text-red-600' : 'text-slate-300'}`}>
+                              {row.absences}
+                            </span>
+                            {row.absenceDays.length > 0 && (
+                              <div className="flex flex-wrap justify-center gap-1 mt-1 max-w-[120px]">
+                                {row.absenceDays.map(day => (
+                                  <span key={day} className="text-[8px] font-black bg-slate-100 text-slate-500 px-1 py-0.5 rounded border border-slate-200" title={`Falta no dia ${day}`}>
+                                    {day}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="p-6 text-center">
+                          <span className={`px-3 py-1 rounded-lg text-[10px] font-black ${row.overtime !== '0h 0m' ? 'bg-green-50 text-green-600' : 'text-slate-300'}`}>
+                            {row.overtime}
+                          </span>
+                        </td>
+                        <td className="p-6 text-center font-black text-slate-800 text-sm">{row.totalHours}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Área do Relatório - Diário (Versão Web) */}
+          {reportType === 'DIARIO' && (
+            <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden p-10 no-print">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {dailyReportData.map(row => (
+                  <div key={row.id} className="p-6 rounded-3xl border border-slate-100 flex items-center justify-between">
+                     <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-2xl bg-purple-50 flex items-center justify-center font-black text-sm text-[#710087] uppercase">
+                           {row.name[0]}
+                        </div>
+                        <div>
+                           <p className="text-xs font-black text-slate-900 uppercase leading-none">{row.name}</p>
+                           <p className="text-[8px] font-black uppercase text-slate-400 mt-1">{row.status}</p>
+                        </div>
+                     </div>
+                     <div className="flex gap-2">
+                        {row.punches.map(p => (
+                           <span key={p.id} className="text-[10px] font-black text-slate-700 bg-slate-50 px-2 py-1 rounded-lg">{new Date(p.timestamp).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}</span>
+                        ))}
+                     </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* MODAL DE VISUALIZAÇÃO PRÉVIA (PRINT PREVIEW) */}
+      {showPrintPreview && (
+        <div className="fixed inset-0 z-[200] bg-slate-900/80 backdrop-blur-lg flex items-center justify-center p-4 overflow-y-auto no-print">
+          <div className="max-w-4xl w-full bg-white rounded-3xl shadow-2xl overflow-hidden animate-scaleUp">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div className="flex items-center gap-3 text-slate-900">
+                <Printer size={20} className="text-[#710087]" />
+                <h3 className="font-black text-sm uppercase tracking-widest">Pré-visualização do Relatório</h3>
+              </div>
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => setShowPrintPreview(false)}
+                  className="px-5 py-2.5 bg-slate-200 text-slate-600 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-300 transition-all"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={handlePrint}
+                  className="px-8 py-2.5 bg-[#710087] text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-purple-200 hover:bg-[#5a006d] transition-all flex items-center gap-2"
+                >
+                  <CheckCircle2 size={16} /> Confirmar e Imprimir
+                </button>
+              </div>
+            </div>
+
+            {/* Simulação da Folha A4 */}
+            <div className="p-12 bg-slate-100 overflow-y-auto max-h-[70vh]">
+              <div className="bg-white w-full shadow-2xl mx-auto p-10 border border-slate-300 print:shadow-none print:border-none" id="print-area">
+                
+                {/* Cabeçalho do Relatório */}
+                <div className="border-b-2 border-black pb-8 mb-8 flex justify-between items-end">
+                  <div>
+                    <h1 className="text-3xl font-black uppercase tracking-tighter text-black">Ultranet Provedor</h1>
+                    <p className="text-[10px] font-bold text-black uppercase tracking-[3px] mt-1">Gestão de Recursos Humanos</p>
+                  </div>
+                  <div className="text-right">
+                    <h2 className="text-xl font-black uppercase text-black">Relatório {reportType === 'MENSAL' ? 'Consolidado Mensal' : 'Atividades Diárias'}</h2>
+                    <p className="text-xs font-bold uppercase text-black mt-1">
+                      Referência: <span className="font-black">{reportType === 'MENSAL' ? reportMonth : new Date(reportDay + 'T12:00:00').toLocaleDateString('pt-BR')}</span>
+                    </p>
+                    {reportFilterEmployeeId !== 'all' && (
+                      <p className="text-[9px] font-black uppercase text-black mt-1">Colaborador: {employees.find(e => e.id === reportFilterEmployeeId)?.name}</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Conteúdo do Relatório Mensal */}
+                {reportType === 'MENSAL' && (
+                  <table className="w-full border-collapse border border-black text-black">
+                    <thead className="bg-slate-100">
+                      <tr>
+                        <th className="border border-black p-3 text-[10px] font-black uppercase text-left">Colaborador</th>
+                        <th className="border border-black p-3 text-[10px] font-black uppercase text-center">Faltas (Dias)</th>
+                        <th className="border border-black p-3 text-[10px] font-black uppercase text-center">Horas Extras</th>
+                        <th className="border border-black p-3 text-[10px] font-black uppercase text-center">Total de Horas</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {monthlyReportData.map(row => (
+                        <tr key={row.id}>
+                          <td className="border border-black p-3">
+                            <p className="text-[11px] font-black uppercase">{row.name}</p>
+                            <p className="text-[9px] font-bold uppercase text-slate-600">{row.role}</p>
+                          </td>
+                          <td className="border border-black p-3 text-center">
+                            <p className="text-[12px] font-black">{row.absences}</p>
+                            {row.absenceDays.length > 0 && (
+                              <p className="text-[8px] font-bold mt-1 text-slate-500">Dias: {row.absenceDays.join(', ')}</p>
+                            )}
+                          </td>
+                          <td className="border border-black p-3 text-center text-[10px] font-black">{row.overtime}</td>
+                          <td className="border border-black p-3 text-center text-[10px] font-black">{row.totalHours}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+
+                {/* Conteúdo do Relatório Diário */}
+                {reportType === 'DIARIO' && (
+                  <div className="space-y-4">
+                    {dailyReportData.map(row => (
+                      <div key={row.id} className="border border-black p-4 flex justify-between items-center">
+                        <div>
+                          <p className="text-xs font-black uppercase text-black">{row.name}</p>
+                          <p className="text-[9px] font-bold uppercase text-slate-500">{row.status}</p>
+                        </div>
+                        <div className="flex gap-2">
+                          {row.punches.map(p => (
+                            <span key={p.id} className="text-[10px] font-black border border-black px-2 py-1">
+                              {new Date(p.timestamp).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Rodapé de Assinaturas */}
+                <div className="mt-24 grid grid-cols-2 gap-20">
+                  <div className="text-center border-t border-black pt-3">
+                    <p className="text-[10px] font-black uppercase text-black">Assinatura Responsável RH</p>
+                    <p className="text-[8px] font-bold text-slate-400 mt-1 uppercase">Ultranet Tecnologia</p>
+                  </div>
+                  <div className="text-center border-t border-black pt-3">
+                    <p className="text-[10px] font-black uppercase text-black">Assinatura Diretoria</p>
+                    <p className="text-[8px] font-bold text-slate-400 mt-1 uppercase">Emissora do Relatório</p>
+                  </div>
+                </div>
+
+                <div className="mt-12 text-center">
+                  <p className="text-[8px] font-black text-slate-300 uppercase tracking-[4px]">Relatório Gerado Eletronicamente via Sistema de Ponto Ultranet • {new Date().toLocaleDateString('pt-BR')} {new Date().toLocaleTimeString('pt-BR')}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cabeçalho de Impressão Definitivo (Visível apenas na saída da impressora) */}
+      <div className="hidden print:block" id="real-print-content">
+        <div className="p-10">
+          {/* Cabeçalho */}
+          <div className="border-b-2 border-black pb-8 mb-8 flex justify-between items-end">
+            <div>
+              <h1 className="text-3xl font-black uppercase tracking-tighter text-black">Ultranet Provedor</h1>
+              <p className="text-[10px] font-bold text-black uppercase tracking-[3px] mt-1">Gestão de Recursos Humanos</p>
+            </div>
+            <div className="text-right">
+              <h2 className="text-xl font-black uppercase text-black">Relatório {reportType === 'MENSAL' ? 'Consolidado Mensal' : 'Atividades Diárias'}</h2>
+              <p className="text-xs font-bold uppercase text-black mt-1">
+                Ref: {reportType === 'MENSAL' ? reportMonth : reportDay}
+              </p>
+            </div>
+          </div>
+
+          {/* Dados Mensais */}
+          {reportType === 'MENSAL' && (
+            <table className="w-full border-collapse border border-black text-black">
+              <thead className="bg-gray-100">
+                <tr>
+                  <th className="border border-black p-2 text-[10px] font-black uppercase">Colaborador</th>
+                  <th className="border border-black p-2 text-[10px] font-black uppercase">Faltas</th>
+                  <th className="border border-black p-2 text-[10px] font-black uppercase">Extras</th>
+                  <th className="border border-black p-2 text-[10px] font-black uppercase">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {monthlyReportData.map(row => (
+                  <tr key={row.id}>
+                    <td className="border border-black p-2 text-[11px] font-black uppercase">{row.name}</td>
+                    <td className="border border-black p-2 text-center text-[10px]">
+                      {row.absences} {row.absenceDays.length > 0 && `(${row.absenceDays.join(', ')})`}
+                    </td>
+                    <td className="border border-black p-2 text-center text-[10px]">{row.overtime}</td>
+                    <td className="border border-black p-2 text-center text-[10px] font-black">{row.totalHours}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          {/* Dados Diários */}
+          {reportType === 'DIARIO' && (
+            <div className="space-y-4">
+              {dailyReportData.map(row => (
+                <div key={row.id} className="border border-black p-4 flex justify-between items-center">
+                  <p className="text-xs font-black uppercase">{row.name}</p>
+                  <div className="flex gap-2">
+                    {row.punches.map(p => (
+                      <span key={p.id} className="text-[10px] border border-black px-2 py-1 font-black">
+                        {new Date(p.timestamp).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Assinaturas no Rodapé */}
+          <div className="mt-40 grid grid-cols-2 gap-20">
+            <div className="text-center border-t border-black pt-2">
+              <p className="text-[10px] font-black uppercase">Responsável RH</p>
+            </div>
+            <div className="text-center border-t border-black pt-2">
+              <p className="text-[10px] font-black uppercase">Diretoria</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Modal de Cadastro / Edição - No Print */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 no-print">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md animate-fadeIn" onClick={handleCloseModal} />
+          <div className="bg-white w-full max-w-lg rounded-[3rem] shadow-2xl relative z-10 overflow-hidden animate-scaleUp border border-white/20">
+            <div className="p-10 border-b border-slate-50 bg-slate-50/50 flex justify-between items-center">
+              <div>
+                <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight leading-none">
+                  {editingEmployeeId ? 'Editar Colaborador' : 'Novo Colaborador'}
+                </h3>
+                <p className="text-[10px] font-bold text-[#710087] uppercase tracking-[2px] mt-2">Dados da Ultranet</p>
+              </div>
+              <button onClick={handleCloseModal} className="p-3 hover:bg-white rounded-2xl text-slate-400 transition-all">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <form onSubmit={handleAddOrUpdateSubmit} className="p-10 space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nome Completo</label>
+                <input 
+                  type="text" required placeholder="EX: JOÃO DA SILVA"
+                  value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})}
+                  className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-black uppercase tracking-widest outline-none focus:border-[#710087] transition-all"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">CPF</label>
+                  <div className="relative group">
+                    <Fingerprint className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-[#710087]" size={18} />
+                    <input 
+                      type="text" required placeholder="000.000.000-00"
+                      value={formData.cpf} onChange={e => setFormData({...formData, cpf: e.target.value})}
+                      className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-black outline-none focus:border-[#710087] transition-all"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Cargo</label>
+                  <div className="relative group">
+                    <Briefcase className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-[#710087]" size={18} />
+                    <input 
+                      type="text" required placeholder="EX: TÉCNICO"
+                      value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})}
+                      className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-black uppercase tracking-widest outline-none focus:border-[#710087] transition-all"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Carga Horária</label>
+                <input 
+                  type="text" required
+                  value={formData.shift} onChange={e => setFormData({...formData, shift: e.target.value})}
+                  className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-[10px] font-black uppercase outline-none focus:border-[#710087] transition-all"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Usuário</label>
+                  <input 
+                    type="text" required placeholder="EX: JOAO.SILVA"
+                    value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})}
+                    className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-black uppercase outline-none focus:border-[#710087] transition-all"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Senha</label>
+                  <input 
+                    type="password" required placeholder="••••••••"
+                    value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})}
+                    className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-black outline-none focus:border-[#710087] transition-all"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-6">
+                <button type="submit" className="w-full py-5 bg-[#710087] text-white rounded-2xl font-black text-xs uppercase tracking-[3px] shadow-xl shadow-purple-100 hover:bg-[#5a006d] transition-all flex items-center justify-center gap-3">
+                  <Save size={20} /> {editingEmployeeId ? 'Salvar Alterações' : 'Finalizar Cadastro'}
+                </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE CONFIRMAÇÃO DE EXCLUSÃO */}
+      {employeeToDelete && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 no-print">
+          <div className="absolute inset-0 bg-slate-900/70 backdrop-blur-md animate-fadeIn" onClick={() => setEmployeeToDelete(null)} />
+          <div className="bg-white w-full max-sm rounded-[2.5rem] shadow-2xl relative z-10 overflow-hidden animate-scaleUp border border-red-50">
+            <div className="p-10 text-center">
+              <div className="w-20 h-20 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-6">
+                <AlertTriangle size={40} />
+              </div>
+              <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">Atenção!</h3>
+              <p className="text-[11px] text-slate-500 font-bold uppercase tracking-widest mt-4 leading-relaxed">
+                Você está prestes a remover <span className="text-red-600 font-black">{employeeToDelete.name}</span> permanentemente. 
+                Esta ação também excluirá todo o histórico de pontos deste colaborador.
+              </p>
+              
+              <div className="grid grid-cols-2 gap-4 mt-10">
+                <button 
+                  onClick={() => setEmployeeToDelete(null)}
+                  className="py-4 bg-slate-100 text-slate-600 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={confirmDelete}
+                  className="py-4 bg-red-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-red-200 hover:bg-red-700 transition-all active:scale-95"
+                >
+                  Confirmar
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

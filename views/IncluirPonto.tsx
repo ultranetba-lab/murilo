@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { MapPin, Clock, CheckCircle2, Navigation, Sparkles, Camera, Loader2 } from 'lucide-react';
+import { MapPin, Clock, CheckCircle2, Navigation, Sparkles, Camera, Loader2, UserCheck } from 'lucide-react';
 import MapView from '../components/MapView';
 import { PunchRecord, PunchStatus, UserProfile } from '../types';
 import { analyzeJustification } from '../services/geminiService';
@@ -81,7 +81,7 @@ const IncluirPonto: React.FC<IncluirPontoProps> = ({ onAddPunch, recentPunches, 
         userId: user.id,
         userName: user.name,
         timestamp: new Date(),
-        location: { ...location, address: "Bahia, Brasil" },
+        location: { ...location, address: "Ponto Verificado via GPS" },
         justification,
         photo: photoData,
         status: PunchStatus.ACCEPTED,
@@ -94,140 +94,157 @@ const IncluirPonto: React.FC<IncluirPontoProps> = ({ onAddPunch, recentPunches, 
         setAiFeedback(null);
         setCapturedPhoto(null);
         setIsSubmitting(false);
-      }, 1500);
+      }, 2000);
     }
   };
 
   return (
     <div className="space-y-6 animate-fadeIn">
-      {/* Time and Map Card */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="h-44 grayscale-[0.3]">
+      {/* Relógio e Mapa */}
+      <div className="bg-white rounded-[2rem] shadow-sm border border-slate-200 overflow-hidden">
+        <div className="h-48 relative">
           {location ? <MapView lat={location.lat} lng={location.lng} radius={50} /> : (
-            <div className="h-full bg-slate-50 flex items-center justify-center text-slate-500 font-bold uppercase text-xs tracking-widest">
-              <Loader2 className="animate-spin mr-3 text-[#710087]" size={20} /> Aguardando GPS...
+            <div className="h-full bg-slate-50 flex items-center justify-center text-slate-400 font-bold uppercase text-[10px] tracking-[4px]">
+              <Loader2 className="animate-spin mr-3 text-[#710087]" size={20} /> Localizando...
             </div>
           )}
-        </div>
-        <div className="p-6 flex items-center justify-between bg-white border-t border-slate-100">
-          <div>
-            <div className="text-4xl font-extrabold text-[#0f172a] tracking-tight leading-none">
-              {now.toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'})}
-              <span className="text-xl text-slate-400 ml-1 font-semibold">:{now.getSeconds().toString().padStart(2, '0')}</span>
-            </div>
-            <p className="text-[11px] font-bold text-[#710087] uppercase tracking-[2px] mt-2">
-              {now.toLocaleDateString('pt-BR', {weekday: 'long', day: '2-digit', month: 'long'})}
-            </p>
-          </div>
-          <div className="text-right">
-             <span className="inline-flex items-center px-4 py-1.5 bg-green-50 text-green-700 rounded-lg text-[10px] font-bold uppercase tracking-wider border border-green-100 shadow-sm">
-               GPS Ativo
+          <div className="absolute top-4 right-4 z-[1000]">
+             <span className="flex items-center gap-2 px-3 py-1 bg-white/90 backdrop-blur shadow-sm rounded-full text-[9px] font-black text-green-600 border border-green-100 uppercase">
+                <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" /> GPS Ativo
              </span>
           </div>
         </div>
+        <div className="p-8 flex items-center justify-between">
+          <div>
+            <div className="text-5xl font-black text-[#0f172a] tracking-tighter leading-none">
+              {now.toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'})}
+              <span className="text-2xl text-slate-300 ml-1 font-bold">:{now.getSeconds().toString().padStart(2, '0')}</span>
+            </div>
+            <p className="text-[11px] font-black text-[#710087] uppercase tracking-[3px] mt-3">
+              {now.toLocaleDateString('pt-BR', {weekday: 'long', day: '2-digit', month: 'long'})}
+            </p>
+          </div>
+        </div>
       </div>
 
-      {/* Biometric Scan Card */}
-      <div className="bg-white p-8 rounded-[1.5rem] shadow-sm border border-slate-200">
-        <h3 className="text-xs font-bold text-slate-800 uppercase tracking-widest mb-6 flex items-center gap-2">
-          <Camera size={18} className="text-[#710087]" /> Reconhecimento Facial
-        </h3>
+      {/* Biometria Facial */}
+      <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-200">
+        <div className="flex items-center justify-between mb-8">
+          <h3 className="text-[10px] font-black text-slate-800 uppercase tracking-[3px] flex items-center gap-2">
+            <Camera size={16} className="text-[#710087]" /> Reconhecimento de Presença
+          </h3>
+          <UserCheck size={20} className="text-slate-200" />
+        </div>
         
-        <div className="relative bg-slate-900 rounded-2xl overflow-hidden aspect-video mb-8 border border-slate-200 shadow-md">
+        <div className="relative bg-slate-900 rounded-3xl overflow-hidden aspect-[4/3] mb-8 border-4 border-slate-50 shadow-inner">
           <video ref={videoRef} autoPlay playsInline className={`w-full h-full object-cover mirror ${capturedPhoto ? 'opacity-0' : 'opacity-100'} transition-opacity`} />
           {capturedPhoto && (
-            <div className="absolute inset-0 bg-slate-900 animate-fadeIn">
-               <img src={capturedPhoto} className="w-full h-full object-cover opacity-80" />
-               <div className="absolute inset-0 flex items-center justify-center bg-[#710087]/20 backdrop-blur-sm">
-                  <div className="bg-white p-5 rounded-full shadow-2xl animate-scaleUp">
-                     <CheckCircle2 size={48} className="text-green-500" />
+            <div className="absolute inset-0 bg-slate-950 animate-fadeIn">
+               <img src={capturedPhoto} className="w-full h-full object-cover opacity-60" />
+               <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
+                  <div className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center shadow-[0_0_40px_rgba(34,197,94,0.5)] animate-scaleUp">
+                     <CheckCircle2 size={40} className="text-white" />
                   </div>
+                  <span className="text-xs font-black text-white uppercase tracking-[4px]">Ponto Confirmado</span>
                </div>
             </div>
           )}
+          
           {!isCameraReady && !capturedPhoto && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 gap-3">
-               <Loader2 className="animate-spin text-[#fbb03b]" size={32} />
-               <span className="text-xs font-bold uppercase tracking-widest">Iniciando Sensor...</span>
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-500 gap-4">
+               <Loader2 className="animate-spin text-[#710087]" size={32} />
+               <span className="text-[10px] font-black uppercase tracking-[3px]">Iniciando Sensor...</span>
             </div>
           )}
-          <div className="absolute inset-0 border-[30px] border-black/10 pointer-events-none flex items-center justify-center">
-             <div className="w-40 h-52 border-2 border-dashed border-white/40 rounded-full" />
-          </div>
+
+          {/* HUD de Reconhecimento */}
+          {!capturedPhoto && isCameraReady && (
+            <div className="absolute inset-0 pointer-events-none">
+              <div className="absolute inset-0 border-[40px] border-black/20" />
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-64 border-2 border-white/30 border-dashed rounded-[3rem]" />
+              <div className="absolute top-6 left-6 flex flex-col gap-1">
+                 <div className="w-24 h-1 bg-white/20 rounded-full overflow-hidden">
+                    <div className="h-full bg-[#710087] animate-[shimmer_2s_infinite]" style={{width: '60%'}} />
+                 </div>
+                 <span className="text-[8px] font-black text-white/50 uppercase tracking-widest">Análise Biométrica</span>
+              </div>
+            </div>
+          )}
           <canvas ref={canvasRef} className="hidden" />
         </div>
 
-        <div className="relative mb-6">
-          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1 block mb-2">Justificativa / Observação</label>
-          <textarea
-            placeholder="Digite aqui se houver alguma observação..."
-            className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-medium focus:border-[#710087] transition-all resize-none h-24 outline-none text-sm placeholder:text-slate-400"
-            value={justification}
-            onChange={(e) => setJustification(e.target.value)}
-          />
-          {justification.length > 5 && (
-            <button 
-              onClick={handleSmartCheck}
-              className="absolute bottom-4 right-4 p-2 bg-white text-[#710087] rounded-lg border border-slate-200 shadow-sm hover:bg-slate-50 transition-all"
-              title="Analisar via IA"
-            >
-              <Sparkles size={18} />
-            </button>
-          )}
-        </div>
-
-        {aiFeedback && (
-          <div className="mb-6 p-4 bg-purple-50 border border-purple-100 rounded-xl text-xs text-slate-700 animate-slideDown">
-             <p className="font-bold text-[#710087] mb-1.5 flex items-center gap-1.5 uppercase tracking-tight"><Sparkles size={14} /> Sugestão da IA:</p>
-             <p className="leading-relaxed">{aiFeedback.feedback}</p>
+        <div className="space-y-6">
+          <div className="relative">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 block mb-3">Justificativa Opcional</label>
+            <textarea
+              placeholder="Digite aqui observações relevantes..."
+              className="w-full p-5 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 font-medium focus:border-[#710087] focus:ring-4 focus:ring-purple-50 transition-all resize-none h-24 outline-none text-sm placeholder:text-slate-300 shadow-inner"
+              value={justification}
+              onChange={(e) => setJustification(e.target.value)}
+            />
+            {justification.length > 5 && (
+              <button 
+                onClick={handleSmartCheck}
+                className="absolute bottom-4 right-4 p-2.5 bg-white text-[#710087] rounded-xl border border-slate-100 shadow-sm hover:shadow-md transition-all group"
+                title="Melhorar com IA"
+              >
+                <Sparkles size={18} className="group-hover:scale-110 transition-transform" />
+              </button>
+            )}
           </div>
-        )}
 
-        <button
-          onClick={handleSubmit}
-          disabled={isSubmitting || !location || !isCameraReady}
-          className="w-full py-5 rounded-xl font-bold text-sm uppercase tracking-widest text-white shadow-lg shadow-purple-100 transition-all flex items-center justify-center gap-3 bg-[#710087] hover:bg-[#5a006d] active:scale-95 disabled:bg-slate-200 disabled:shadow-none"
-        >
-          {isSubmitting ? (
-             <><Loader2 className="animate-spin" size={20} /> Enviando...</>
-          ) : (
-             <><Navigation size={20} /> Registrar Presença</>
+          {aiFeedback && (
+            <div className="p-5 bg-purple-50 border border-purple-100 rounded-2xl text-xs text-slate-700 animate-slideDown shadow-sm">
+               <p className="font-black text-[#710087] mb-2 flex items-center gap-2 uppercase tracking-tight">
+                 <Sparkles size={14} /> Sugestão da Inteligência Ultranet:
+               </p>
+               <p className="leading-relaxed font-medium">{aiFeedback.feedback}</p>
+            </div>
           )}
-        </button>
+
+          <button
+            onClick={handleSubmit}
+            disabled={isSubmitting || !location || !isCameraReady}
+            className="w-full py-5 rounded-[1.25rem] font-black text-xs uppercase tracking-[3px] text-white shadow-xl shadow-purple-100 transition-all flex items-center justify-center gap-3 bg-[#710087] hover:bg-[#5a006d] active:scale-[0.98] disabled:bg-slate-200 disabled:shadow-none"
+          >
+            {isSubmitting ? (
+               <><Loader2 className="animate-spin" size={20} /> Validando Dados...</>
+            ) : (
+               <><Navigation size={20} /> Registrar Presença Agora</>
+            )}
+          </button>
+        </div>
       </div>
 
-      {/* Recent History Card */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-12">
-        <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
-          <h3 className="font-bold text-[11px] text-slate-800 uppercase tracking-widest">Atividades de Hoje</h3>
-          <span className="text-[10px] font-bold text-slate-500 bg-white border border-slate-200 px-3 py-0.5 rounded-full uppercase">Sincronizado</span>
+      {/* Histórico Recente */}
+      <div className="bg-white rounded-[2rem] shadow-sm border border-slate-200 overflow-hidden mb-12">
+        <div className="px-8 py-5 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+          <h3 className="font-black text-[10px] text-slate-800 uppercase tracking-[3px]">Atividades de Hoje</h3>
+          <div className="h-2 w-2 bg-green-500 rounded-full" />
         </div>
-        <div className="divide-y divide-slate-100">
-          {recentPunches.length > 0 ? recentPunches.slice(0, 3).map((punch) => (
-            <div key={punch.id} className="p-6 flex items-center justify-between hover:bg-slate-50 transition-colors">
-              <div className="flex items-center gap-5">
-                <div className={`p-2.5 rounded-xl shadow-sm border ${punch.type === 'IN' ? 'bg-green-50 text-green-700 border-green-100' : 'bg-orange-50 text-orange-700 border-orange-100'}`}>
-                  <MapPin size={22} />
+        <div className="divide-y divide-slate-50">
+          {recentPunches.length > 0 ? recentPunches.slice(0, 4).map((punch) => (
+            <div key={punch.id} className="p-8 flex items-center justify-between hover:bg-slate-50/50 transition-colors">
+              <div className="flex items-center gap-6">
+                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border shadow-sm ${punch.type === 'IN' ? 'bg-green-50 text-green-600 border-green-100' : 'bg-orange-50 text-orange-600 border-orange-100'}`}>
+                  <Clock size={24} />
                 </div>
                 <div>
-                  <p className="font-extrabold text-slate-900 text-xl leading-none mb-1">
+                  <p className="font-black text-slate-900 text-2xl leading-none mb-1">
                     {punch.timestamp.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                   </p>
-                  <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
                     {punch.type === 'IN' ? 'Entrada Confirmada' : 'Saída Confirmada'}
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-3">
-                 <div className="w-10 h-10 bg-slate-100 rounded-lg overflow-hidden border border-slate-200">
-                   {punch.photo && <img src={punch.photo} className="w-full h-full object-cover grayscale opacity-60" />}
-                 </div>
-                 <CheckCircle2 size={24} className="text-green-500" />
+              <div className="w-12 h-12 bg-slate-100 rounded-xl overflow-hidden border border-slate-200 rotate-3">
+                 {punch.photo && <img src={punch.photo} className="w-full h-full object-cover grayscale brightness-110" />}
               </div>
             </div>
           )) : (
-            <div className="p-16 text-center text-slate-400">
-               <p className="text-xs font-bold uppercase tracking-[4px]">Aguardando registros</p>
+            <div className="p-20 text-center">
+               <p className="text-[10px] font-black text-slate-300 uppercase tracking-[4px]">Nenhum registro hoje</p>
             </div>
           )}
         </div>
