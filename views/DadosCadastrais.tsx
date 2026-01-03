@@ -37,7 +37,6 @@ const DadosCadastrais: React.FC<DadosCadastraisProps> = ({ user, onUpdate }) => 
   return (
     <div className="space-y-6 animate-fadeIn pb-12">
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        {/* Novo Header em tons claros para máxima leitura */}
         <div className="bg-purple-50 p-10 flex flex-col items-center text-center border-b border-purple-100">
           <div className="w-20 h-20 bg-white rounded-3xl flex items-center justify-center border border-purple-200 mb-5 shadow-sm">
             <User size={40} className="text-[#710087]" />
@@ -124,7 +123,7 @@ const DadosCadastrais: React.FC<DadosCadastraisProps> = ({ user, onUpdate }) => 
       </div>
 
       <div className="text-center pt-4">
-        <p className="text-[11px] text-slate-400 font-bold uppercase tracking-[4px]">Ultranet • Tecnologia em Conectividade • 2025</p>
+        <p className="text-[11px] text-slate-400 font-bold uppercase tracking-[4px]">Ultranet • Tecnologia em Conectividade • 2026</p>
       </div>
     </div>
   );

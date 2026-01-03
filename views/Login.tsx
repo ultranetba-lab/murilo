@@ -5,9 +5,10 @@ import { UserProfile } from '../types';
 
 interface LoginProps {
   onLogin: (user: UserProfile) => void;
+  employees: UserProfile[];
 }
 
-const Login: React.FC<LoginProps> = ({ onLogin }) => {
+const Login: React.FC<LoginProps> = ({ onLogin, employees }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -19,7 +20,10 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     setError('');
 
     setTimeout(() => {
-      if (username.toLowerCase() === 'admin' && password === '123') {
+      const lowerUser = username.toLowerCase();
+      
+      // Admin fixo para gestão inicial com a nova senha solicitada
+      if (lowerUser === 'admin' && password === 'Win9135@') {
         onLogin({
           id: 'admin-1',
           name: 'GESTOR ULTRANET',
@@ -29,26 +33,21 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           shift: 'INTEGRAL',
           userType: 'ADMIN'
         });
-      } else if (username.toLowerCase() === 'lucas' && password === '123') {
-        onLogin({
-          id: 'user-1',
-          name: 'LUCAS ASSIS DOS SANTOS CRUZ',
-          username: 'lucas',
-          company: 'ULTRANET SERVICOS',
-          role: 'TECNICO EXTERNO',
-          shift: '08:00 - 18:00',
-          userType: 'COLABORADOR'
-        });
       } else {
-        setError('Usuário ou senha inválidos.');
-        setLoading(false);
+        // Validação contra lista dinâmica
+        const found = employees.find(emp => emp.username.toLowerCase() === lowerUser && emp.password === password);
+        if (found) {
+          onLogin(found);
+        } else {
+          setError('Usuário ou senha inválidos para este acesso.');
+          setLoading(false);
+        }
       }
     }, 1000);
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4 relative overflow-hidden">
-      {/* Decorative Blur Elements */}
       <div className="absolute top-[-10%] right-[-10%] w-96 h-96 bg-purple-100 rounded-full blur-3xl opacity-40 animate-pulse"></div>
       <div className="absolute bottom-[-10%] left-[-10%] w-96 h-96 bg-orange-50 rounded-full blur-3xl opacity-40"></div>
 
@@ -71,7 +70,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:border-[#710087] focus:ring-4 focus:ring-purple-500/5 transition-all outline-none text-slate-900 font-bold placeholder:text-slate-300 text-sm"
-                placeholder="Ex: lucas.assis"
+                placeholder=""
                 required
               />
             </div>
@@ -86,7 +85,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:border-[#710087] focus:ring-4 focus:ring-purple-500/5 transition-all outline-none text-slate-900 font-bold placeholder:text-slate-300 text-sm"
-                placeholder="••••••••"
+                placeholder=""
                 required
               />
             </div>

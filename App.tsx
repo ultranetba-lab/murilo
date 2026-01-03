@@ -14,26 +14,9 @@ const App: React.FC = () => {
   const [activeView, setActiveView] = useState<ViewType>('INCLUIR_PONTO');
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [punches, setPunches] = useState<PunchRecord[]>([]);
-
-  useEffect(() => {
-    const mockPunches: PunchRecord[] = [
-      {
-        id: '1', userId: 'user-1', userName: 'LUCAS ASSIS',
-        timestamp: new Date('2025-12-24T11:58:00'),
-        location: { lat: -10.5, lng: -40.2, address: 'Mirangaba, BA' },
-        status: PunchStatus.ACCEPTED,
-        type: 'OUT'
-      },
-      {
-        id: '2', userId: 'user-1', userName: 'LUCAS ASSIS',
-        timestamp: new Date('2025-12-24T07:59:00'),
-        location: { lat: -10.5, lng: -40.2, address: 'Mirangaba, BA' },
-        status: PunchStatus.ACCEPTED,
-        type: 'IN'
-      }
-    ];
-    setPunches(mockPunches);
-  }, []);
+  
+  // Lista de funcionários iniciada vazia
+  const [employees, setEmployees] = useState<UserProfile[]>([]);
 
   const handleLogin = (user: UserProfile) => {
     setCurrentUser(user);
@@ -47,11 +30,30 @@ const App: React.FC = () => {
 
   const handleUpdateProfile = (updatedUser: UserProfile) => {
     setCurrentUser(updatedUser);
+    setEmployees(prev => prev.map(e => e.id === updatedUser.id ? updatedUser : e));
   };
 
   const handleAddPunch = (punch: PunchRecord) => {
-    // CRITICAL: Use functional update to avoid race conditions when adding multiple punches synchronously
     setPunches(prev => [punch, ...prev]);
+  };
+
+  const handleAddEmployee = (emp: UserProfile) => {
+    setEmployees(prev => [...prev, emp]);
+  };
+
+  const handleUpdateEmployee = (emp: UserProfile) => {
+    setEmployees(prev => prev.map(e => e.id === emp.id ? emp : e));
+  };
+
+  const handleDeleteEmployee = (id: string) => {
+    // Exclusão com spread operator para garantir nova referência de array e re-render
+    setEmployees(prev => {
+      const filtered = prev.filter(e => e.id !== id);
+      return [...filtered];
+    });
+    
+    // Remove registros de ponto do funcionário excluído
+    setPunches(prev => prev.filter(p => p.userId !== id));
   };
 
   const getTitle = () => {
@@ -65,7 +67,7 @@ const App: React.FC = () => {
   };
 
   if (!currentUser) {
-    return <Login onLogin={handleLogin} />;
+    return <Login onLogin={handleLogin} employees={employees} />;
   }
 
   const renderView = () => {
@@ -81,7 +83,16 @@ const App: React.FC = () => {
       case 'CARTAO_PONTO':
         return <CartaoPonto punches={punches.filter(p => p.userId === currentUser.id)} user={currentUser} />;
       case 'ADMIN_DASHBOARD':
-        return <AdminDashboard punches={punches} onManualPunch={handleAddPunch} />;
+        return (
+          <AdminDashboard 
+            punches={punches} 
+            employees={employees}
+            onManualPunch={handleAddPunch}
+            onAddEmployee={handleAddEmployee}
+            onUpdateEmployee={handleUpdateEmployee}
+            onDeleteEmployee={handleDeleteEmployee}
+          />
+        );
       case 'DADOS':
         return <DadosCadastrais user={currentUser} onUpdate={handleUpdateProfile} />;
       default:

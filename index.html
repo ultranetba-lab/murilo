@@ -42,6 +42,10 @@
 
         /* CONFIGURAÇÃO DE IMPRESSÃO */
         @media print {
+            @page {
+                size: A4 portrait;
+                margin: 10mm;
+            }
             .no-print {
                 display: none !important;
             }
@@ -54,18 +58,34 @@
                 margin: 0 !important;
                 padding: 0 !important;
                 max-width: 100% !important;
+                width: 100% !important;
             }
-            header, nav, button {
+            header, nav, .fixed, .sticky, button {
                 display: none !important;
             }
             .print-only {
                 display: block !important;
             }
-            .shadow-sm, .shadow-lg, .shadow-xl {
+            .shadow-sm, .shadow-lg, .shadow-xl, .shadow-2xl {
                 box-shadow: none !important;
             }
             .border {
-                border-color: #eee !important;
+                border-color: #000 !important;
+            }
+            .rounded-2xl, .rounded-xl, .rounded-3xl {
+                border-radius: 0 !important;
+            }
+            table {
+                width: 100% !important;
+                border-collapse: collapse !important;
+            }
+            th, td {
+                border: 1px solid #000 !important;
+                padding: 4px 8px !important;
+                font-size: 10px !important;
+            }
+            .bg-slate-50, .bg-purple-50, .bg-gray-50 {
+                background-color: transparent !important;
             }
         }
         .print-only {
